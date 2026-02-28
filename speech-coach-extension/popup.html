@@ -7,8 +7,12 @@
 <body>
   <h2>Speech Coach</h2>
 
-  <button id="startBtn">Start Session</button>
-  <button id="stopBtn">Stop</button>
+  <div class="recording-status" id="recordingStatus">
+    <span class="dot"></span>
+    <span class="status-text">Not Recording</span>
+  </div>
+
+  <button id="toggleBtn">Start Session</button>
 
   <script src="popup.js"></script>
 </body>
