@@ -20,9 +20,17 @@
 
   <button id="toggleBtn">Start Session</button>
 
-  <!-- 10-Second Stats (Live) -->
+  <div class="notification-toggle">
+    <label class="toggle-switch">
+      <input type="checkbox" id="notificationToggle" checked>
+      <span class="toggle-slider"></span>
+    </label>
+    <span class="toggle-label">Desktop Notifications</span>
+  </div>
+
+  <!-- 20-Second Stats (Live) -->
   <div class="stats-box ten-sec-stats">
-    <h3>Last 10 Seconds</h3>
+    <h3>Last 20 Seconds</h3>
     <div class="stats-grid">
       <div class="stat-item">
         <span class="stat-label">WPM:</span>
@@ -52,6 +60,14 @@
   <!-- Overall Stats (Final - Hidden until session ends) -->
   <div id="overallStatsSection" class="stats-box overall-stats" style="display: none;">
     <h3>Session Summary</h3>
+    
+    <!-- Overall Score -->
+    <div class="overall-score">
+      <div class="score-label">Overall Score</div>
+      <div class="score-value" id="overallScore">--</div>
+      <div class="score-subtitle">out of 100</div>
+    </div>
+    
     <div class="stats-grid">
       <div class="stat-item">
         <span class="stat-label">Average WPM:</span>

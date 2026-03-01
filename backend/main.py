@@ -144,6 +144,95 @@ def get_top_filler_words(filler_words_dict, top_n=3):
     return top_fillers
 
 
+def calculate_overall_score(wpm, total_filler_count, unclear_word_count, word_count, duration_seconds):
+    """Calculate overall speaking score out of 100 with fair, percentage-based scoring."""
+    score = 100
+    
+    # Pace scoring (max -30 points)
+    # Optimal range: 95-155 WPM
+    if wpm < 70:
+        score -= min(30, (70 - wpm) * 0.5)
+    elif wpm < 85:
+        score -= min(15, (85 - wpm) * 0.4)
+    elif wpm < 95:
+        score -= min(8, (95 - wpm) * 0.3)
+    elif wpm > 185:
+        score -= min(30, (wpm - 185) * 0.4)
+    elif wpm > 170:
+        score -= min(20, (wpm - 170) * 0.35)
+    elif wpm > 155:
+        score -= min(10, (wpm - 155) * 0.3)
+    
+    # Filler word scoring (max -40 points) - based on percentage
+    filler_percentage = (total_filler_count / word_count * 100) if word_count > 0 else 0
+    
+    if filler_percentage > 8:  # More than 8% fillers
+        score -= 40
+    elif filler_percentage > 5:  # 5-8%
+        score -= 30
+    elif filler_percentage > 3:  # 3-5%
+        score -= 20
+    elif filler_percentage > 2:  # 2-3%
+        score -= 12
+    elif filler_percentage > 1:  # 1-2%
+        score -= 6
+    elif filler_percentage > 0.5:  # 0.5-1%
+        score -= 3
+    
+    # Clarity scoring (max -20 points) - based on percentage
+    unclear_percentage = (unclear_word_count / word_count * 100) if word_count > 0 else 0
+    
+    if unclear_percentage > 5:  # More than 5% unclear
+        score -= 20
+    elif unclear_percentage > 3:  # 3-5%
+        score -= 15
+    elif unclear_percentage > 1:  # 1-3%
+        score -= 10
+    elif unclear_percentage > 0.5:  # 0.5-1%
+        score -= 5
+    elif unclear_percentage > 0:
+        score -= 2
+    
+    # Duration penalty (max -10 points) - need reasonable sample size
+    if duration_seconds < 20:
+        score -= 10
+    elif duration_seconds < 30:
+        score -= 5
+    elif duration_seconds < 45:
+        score -= 2
+    
+    return max(0, min(100, round(score)))
+
+
+def clean_gemini_text(text):
+    """Remove markdown formatting and excessive symbols from Gemini output."""
+    import re
+    
+    # Remove markdown headers (###, ##, #)
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove bold/italic markers (**text**, *text*)
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    
+    # Remove bullet points and list markers (-, *, •)
+    text = re.sub(r'^[\*\-\•]\s+', '', text, flags=re.MULTILINE)
+    
+    # Clean up excessive whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # Remove special unicode characters but keep basic punctuation
+    text = text.replace('—', '-')
+    text = text.replace('–', '-')
+    text = text.replace(''', "'")
+    text = text.replace(''', "'")
+    text = text.replace('"', '"')
+    text = text.replace('"', '"')
+    text = text.replace('…', '...')
+    
+    return text.strip()
+
+
 # === ENDPOINTS ===
 
 @app.get("/health")
@@ -154,7 +243,7 @@ def health():
 
 @app.post("/quick-feedback")
 async def quick_feedback(request: AnalyzeRequest):
-    """Provide quick 10-second stats and coaching tips."""
+    """Provide quick 20-second stats and coaching tips."""
     
     transcript = request.transcript
     duration_seconds = request.duration_seconds
@@ -162,85 +251,95 @@ async def quick_feedback(request: AnalyzeRequest):
     if duration_seconds <= 0:
         raise HTTPException(status_code=400, detail="duration_seconds must be greater than 0")
     
-    # Get last 10 seconds of transcript (approximate by word count)
+    # Get words from the transcript (this is ONLY the last 20 seconds now)
     words = transcript.split()
-    total_words = len(words)
-    duration_minutes = duration_seconds / 60
-    wpm = round(total_words / duration_minutes, 2) if duration_minutes > 0 else 0
+    word_count = len(words)
     
-    # Estimate words in last 10 seconds
-    words_per_second = total_words / duration_seconds if duration_seconds > 0 else 0
-    last_10_sec_word_count = int(words_per_second * min(10, duration_seconds))
-    last_10_sec_words = words[-last_10_sec_word_count:] if last_10_sec_word_count > 0 else words
-    last_10_sec_transcript = " ".join(last_10_sec_words)
+    # If no words, return "no speech detected" feedback
+    if word_count == 0:
+        return {
+            "quick_tip": "No speech detected in last 20 seconds",
+            "ten_sec_stats": {
+                "wpm": 0,
+                "filler_count": 0,
+                "unclear_words": [],
+                "pace_quality": "none"
+            },
+            "severity": "warning"
+        }
     
-    # Calculate 10-sec stats
-    filler_words, filler_count = count_fillers(last_10_sec_transcript)
-    unclear_words = detect_unclear_words(last_10_sec_transcript)
+    # Calculate stats for ONLY this 20-second window
+    filler_words, filler_count = count_fillers(transcript)
+    unclear_words = detect_unclear_words(transcript)
     
-    ten_sec_wpm = round((len(last_10_sec_words) / 10) * 60, 2) if len(last_10_sec_words) > 0 else 0
+    # Calculate WPM based on actual words in this window
+    twenty_sec_wpm = round((word_count / duration_seconds) * 60, 2)
     
     # Determine pace quality
-    if ten_sec_wpm > 160:
+    if twenty_sec_wpm > 170:
         pace_quality = "too_fast"
-    elif ten_sec_wpm < 120:
+    elif twenty_sec_wpm < 110:
         pace_quality = "too_slow"
     else:
         pace_quality = "good"
     
-    # Generate quick tip with improved thresholds
+    # Generate feedback lines for pace, fillers, and clarity
     unclear_count = len(unclear_words)
-    quick_tip = ""
+    pace_line = ""
+    filler_line = ""
+    clarity_line = ""
     severity = "good"
     
-    # Priority 1: Check filler words (most important)
+    # Pace feedback
+    if twenty_sec_wpm > 170:
+        pace_line = "Pace: Too fast"
+        severity = "alert"
+    elif twenty_sec_wpm < 110:
+        pace_line = "Pace: Too slow"
+        if severity == "good": severity = "warning"
+    else:
+        pace_line = "Pace: Good"
+    
+    # Filler word feedback
     if filler_count >= 5:
-        quick_tip = "Way too many filler words! Pause instead of saying 'um'."
+        filler_line = "Fillers: Way too many!"
         severity = "alert"
     elif filler_count >= 3:
-        quick_tip = "Too many filler words. Practice pausing before speaking."
+        filler_line = "Fillers: Too many"
         severity = "alert"
     elif filler_count >= 1:
-        quick_tip = "Watch your filler words. Try to eliminate them."
-        severity = "warning"
-    # Priority 2: Check unclear words
-    elif unclear_count >= 3:
-        quick_tip = "Several words were unclear. Enunciate more carefully."
-        severity = "warning"
+        filler_line = f"Fillers: {filler_count} detected"
+        if severity == "good": severity = "warning"
+    else:
+        filler_line = "Fillers: None"
+    
+    # Clarity feedback
+    if unclear_count >= 3:
+        clarity_line = "Clarity: Several unclear words"
+        if severity == "good": severity = "warning"
     elif unclear_count >= 1:
-        quick_tip = "A word sounded unclear. Focus on pronunciation."
-        severity = "warning"
-    # Priority 3: Check pace
-    elif ten_sec_wpm > 170:
-        quick_tip = "You're speaking way too fast! Slow down significantly."
-        severity = "alert"
-    elif ten_sec_wpm > 150:
-        quick_tip = "You're speaking too fast. Take a breath and slow down."
-        severity = "warning"
-    elif ten_sec_wpm > 145:
-        quick_tip = "Your pace is a bit fast. Try to slow down slightly."
-        severity = "warning"
-    elif ten_sec_wpm < 95:
-        quick_tip = "You're speaking too slowly. Pick up the pace."
-        severity = "warning"
-    elif ten_sec_wpm < 105:
-        quick_tip = "Your pace is a bit slow. Try speaking a little faster."
-        severity = "warning"
-    # Everything is good
-    elif filler_count == 0:
-        quick_tip = "Excellent! No fillers and good pace."
+        clarity_line = f"Clarity: {unclear_count} unclear word"
+        if severity == "good": severity = "warning"
+    else:
+        clarity_line = "Clarity: Clear"
+    
+    # Check if everything is perfect
+    if filler_count == 0 and unclear_count == 0 and 110 <= twenty_sec_wpm <= 170:
+        quick_tip = "Perfect!"
         severity = "good"
     else:
-        quick_tip = "Great pace! Keep it up."
-        severity = "good"
+        # Combine all feedback lines
+        quick_tip = f"{pace_line}\n{filler_line}\n{clarity_line}"
     
     # Debug logging
-    print(f"[DEBUG] 10-sec WPM: {ten_sec_wpm}, Fillers: {filler_count}, Unclear: {unclear_count}, Tip: {quick_tip}")
+    print(f"[BACKEND] Quick feedback: {word_count} words / {duration_seconds:.1f}s = {twenty_sec_wpm:.1f} WPM")
+    print(f"[BACKEND] Fillers: {filler_count}, Unclear: {unclear_count}, Severity: {severity}")
+    print(f"[BACKEND] Pace check: WPM {twenty_sec_wpm:.1f} (>170=fast, <110=slow)")
     
     return {
         "quick_tip": quick_tip,
         "ten_sec_stats": {
-            "wpm": ten_sec_wpm,
+            "wpm": twenty_sec_wpm,
             "filler_count": filler_count,
             "unclear_words": unclear_words,
             "pace_quality": pace_quality
@@ -284,32 +383,77 @@ async def analyze_speech(request: AnalyzeRequest):
     # Get top filler words
     top_filler_words = get_top_filler_words(filler_words, top_n=3)
     
+    # Calculate overall score
+    overall_score = calculate_overall_score(
+        wpm, 
+        total_filler_count, 
+        unclear_word_count, 
+        word_count, 
+        duration_seconds
+    )
+    
+    # Debug logging for score calculation
+    print(f"[BACKEND] Final Analysis: {word_count} words, {wpm:.1f} WPM, {total_filler_count} fillers")
+    print(f"[BACKEND] Score calculation: {overall_score}/100")
+    print(f"[BACKEND] - Filler %: {(total_filler_count/word_count*100):.1f}%")
+    print(f"[BACKEND] - Unclear %: {(unclear_word_count/word_count*100 if word_count > 0 else 0):.1f}%")
+    
     # Generate improved Gemini prompt
-    prompt = f"""You are a speech coach analyzing someone's speaking performance. Provide specific, actionable feedback based on what they actually said.
+    prompt = f"""You are a speech coach analyzing someone's speaking performance. Provide specific, actionable feedback based on their actual speech.
 
-METRICS:
-- Speaking pace: {wpm} words per minute
-- Total filler words: {total_filler_count}
-- Duration: {duration_seconds} seconds
-- Unclear words: {unclear_word_count}
+=== PERFORMANCE METRICS ===
+Overall Score: {overall_score}/100
+Speaking Pace: {wpm:.0f} words per minute
+Total Filler Words: {total_filler_count} ({(total_filler_count/word_count*100):.1f}% of speech)
+Unclear Words: {unclear_word_count}
+Duration: {duration_seconds:.0f} seconds
+Total Words: {word_count}
 
-TRANSCRIPT:
+=== SCORING CONTEXT ===
+Optimal Pace: 95-155 WPM (current: {wpm:.0f} WPM)
+Filler Target: <1% of speech (current: {(total_filler_count/word_count*100):.1f}%)
+Clarity Target: 0 unclear words (current: {unclear_word_count})
+
+=== TRANSCRIPT ===
 "{transcript}"
 
-PROVIDE FEEDBACK ON:
-1. Speaking pace: Is {wpm} WPM appropriate? Too fast/slow? How to adjust?
-2. Filler word usage: {total_filler_count} fillers detected. Specific strategies to reduce them.
-3. Clarity: Were there unclear moments? How to articulate better?
-4. Content quality: Based on what they said, how was the flow and coherence?
+=== YOUR ANALYSIS MUST INCLUDE ===
 
-Give 3-5 SPECIFIC suggestions for improvement that directly relate to THIS speech sample. Be constructive and actionable. Do NOT assume this is an interview or any specific context - this is general speaking practice.
+1. SCORE EXPLANATION (2-3 sentences):
+   Start with "Your score of {overall_score}/100 reflects..." 
+   Explicitly explain which factors (pace, fillers, clarity) raised or lowered the score.
+   Be direct about what went well and what needs improvement.
 
-Format: 2-3 sentences of analysis, then numbered list of suggestions."""
+2. PACE ANALYSIS:
+   Compare {wpm:.0f} WPM to optimal 95-155 range.
+   If too fast (>155): Specific breathing and pacing techniques
+   If too slow (<95): Strategies to maintain energy
+   If good: Acknowledge and encourage maintaining it
+
+3. FILLER WORD STRATEGY:
+   {total_filler_count} fillers = {(total_filler_count/word_count*100):.1f}% of speech.
+   Concrete techniques: pausing, breathing, thinking before speaking
+   Reference specific moments if possible
+
+4. CLARITY & ARTICULATION:
+   Assess pronunciation and clarity based on transcript
+   Specific exercises or techniques if issues detected
+
+5. CONTENT & FLOW:
+   Analyze coherence, structure, and message delivery
+   Comment on transitions and idea connections
+
+6. ACTION ITEMS (4-5 specific steps):
+   Concrete, actionable improvements
+   Prioritized by impact
+   Directly tied to this speech sample
+
+FORMAT: Clear paragraphs for each section. Be honest but constructive. No generic advice - everything must relate to what they actually said and how they said it. This is general speaking practice, not for any specific context."""
 
     try:
         model = genai.GenerativeModel("gemini-3-flash-preview")
         response = model.generate_content(prompt)
-        gemini_feedback = response.text
+        gemini_feedback = clean_gemini_text(response.text)
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -327,6 +471,7 @@ Format: 2-3 sentences of analysis, then numbered list of suggestions."""
         "avg_sentence_length": advanced_metrics["avg_sentence_length"],
         "vocab_richness": advanced_metrics["vocab_richness"],
         "repeated_words": advanced_metrics["repeated_words"],
+        "overall_score": overall_score,
         "gemini_feedback": gemini_feedback,
         "status": "success"
     }
