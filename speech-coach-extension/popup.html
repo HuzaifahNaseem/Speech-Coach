@@ -7,6 +7,12 @@
 <body>
   <h2>Speech Coach</h2>
 
+  <!-- Quick Tip Banner -->
+  <div id="quickTipBanner" class="quick-tip-banner" style="display: none;">
+    <span id="quickTipText"></span>
+  </div>
+
+  <!-- Recording Controls -->
   <div class="recording-status" id="recordingStatus">
     <span class="dot"></span>
     <span class="status-text">Not Recording</span>
@@ -14,33 +20,77 @@
 
   <button id="toggleBtn">Start Session</button>
 
-  <div id="quickTipBanner" class="quick-tip-banner" style="display: none;">
-    <span id="quickTipText"></span>
+  <!-- 10-Second Stats (Live) -->
+  <div class="stats-box ten-sec-stats">
+    <h3>Last 10 Seconds</h3>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <span class="stat-label">WPM:</span>
+        <span class="stat-value" id="tenSecWpm">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Fillers:</span>
+        <span class="stat-value" id="tenSecFillers">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Unclear:</span>
+        <span class="stat-value" id="tenSecUnclear">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Pace:</span>
+        <span class="stat-value" id="tenSecPace">--</span>
+      </div>
+    </div>
   </div>
 
-  <div class="stats-section">
-    <h3>Live Stats</h3>
-    <div class="stat-row">
-      <span class="stat-label">Words Per Minute:</span>
-      <span class="stat-value" id="wpm">0</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Word Count:</span>
-      <span class="stat-value" id="wordCount">0</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Filler Words:</span>
-      <span class="stat-value" id="fillerCount">0</span>
-    </div>
-  </div>
-
+  <!-- Transcript -->
   <div class="transcript-section">
     <h3>Transcript</h3>
     <div id="transcript" class="transcript-box"></div>
   </div>
 
+  <!-- Overall Stats (Final - Hidden until session ends) -->
+  <div id="overallStatsSection" class="stats-box overall-stats" style="display: none;">
+    <h3>Session Summary</h3>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <span class="stat-label">Average WPM:</span>
+        <span class="stat-value" id="overallWpm">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Total Fillers:</span>
+        <span class="stat-value" id="overallFillers">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Unclear Words:</span>
+        <span class="stat-value" id="overallUnclear">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Pace Variance:</span>
+        <span class="stat-value" id="paceVariance">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Avg Sentence:</span>
+        <span class="stat-value" id="avgSentenceLength">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Vocabulary:</span>
+        <span class="stat-value" id="vocabRichness">--</span>
+      </div>
+    </div>
+    <div class="top-fillers">
+      <h4>Most Common Filler Words:</h4>
+      <ol id="topFillersList"></ol>
+    </div>
+    <div class="repeated-words-section">
+      <h4>Repeated Words:</h4>
+      <p id="repeatedWords" class="repeated-words">--</p>
+    </div>
+  </div>
+
+  <!-- AI Feedback (Final) -->
   <div class="feedback-section" id="feedbackSection" style="display: none;">
-    <h3>AI Feedback</h3>
+    <h3>Feedback & Suggestions</h3>
     <div id="feedback" class="feedback-box"></div>
   </div>
 
