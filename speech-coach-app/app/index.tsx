@@ -30,6 +30,7 @@ export default function HomeScreen() {
     loadHistory,
     loadSession,
     clearError,
+    clearHistory,
   } = useSpeech();
 
   useEffect(() => {
@@ -163,7 +164,12 @@ export default function HomeScreen() {
 
             {currentAnalysis && (
               <View style={styles.resultsCard}>
-                <Text style={styles.sectionTitle}>Analysis Results</Text>
+                <View style={styles.resultsHeader}>
+                  <Text style={styles.sectionTitle}>Analysis Results</Text>
+                  <TouchableOpacity onPress={() => setCurrentAnalysis(null)}>
+                    <Ionicons name="close" size={24} color="#9ca3af" />
+                  </TouchableOpacity>
+                </View>
                 
                 <View style={styles.metricsGrid}>
                   <View style={styles.metricItem}>
@@ -200,7 +206,7 @@ export default function HomeScreen() {
                           <Text style={styles.fillerWord}>"{item.word}"</Text>
                           <Text style={styles.fillerCount}>{item.count}x</Text>
                         </View>
-                        <View style={[styles.progressBar, { width: `${item.percentage}%` }]} />
+                        <View style={[styles.progressBar, { width: `${item.percentage * 2}%` }]} />
                       </View>
                     ))}
                   </View>
@@ -242,45 +248,108 @@ export default function HomeScreen() {
           </>
         ) : (
           <View style={styles.historyCard}>
-            <Text style={styles.sectionTitle}>Analysis History</Text>
-            
-            {history && history.sessions.length > 0 ? (
-              history.sessions.map((session, index) => (
+            <View style={styles.historyHeader}>
+              <Text style={styles.sectionTitle}>Analysis History</Text>
+              {history && history.sessions.length > 0 && (
                 <TouchableOpacity
-                  key={index}
-                  style={styles.historyItem}
-                  onPress={() => loadSession(session.sessionId)}
+                  onPress={() => {
+                    Alert.alert(
+                      'Clear History',
+                      'Are you sure you want to clear all history?',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { 
+                          text: 'Clear', 
+                          style: 'destructive',
+                          onPress: clearHistory
+                        }
+                      ]
+                    );
+                  }}
                 >
-                  <View style={styles.historyItemContent}>
-                    <View style={styles.historyItemHeader}>
-                      <Ionicons name="calendar" size={16} color="#6b7280" />
-                      <Text style={styles.historyDate}>
-                        {new Date(session.timestamp).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    <View style={styles.historyStats}>
-                      <View style={styles.historyStat}>
-                        <Text style={styles.historyStatLabel}>Fillers</Text>
-                        <Text style={styles.historyStatValue}>
-                          {session.metrics.fillerPercentage.toFixed(1)}%
+                  <Text style={styles.clearHistoryText}>Clear All</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#4f46e5" />
+                <Text style={styles.loadingText}>Loading history...</Text>
+              </View>
+            ) : history && history.sessions.length > 0 ? (
+              <>
+                {history.sessions.map((session, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.historyItem}
+                    onPress={() => {
+                      loadSession(session.sessionId);
+                      setActiveTab('analyze');
+                    }}
+                  >
+                    <View style={styles.historyItemContent}>
+                      <View style={styles.historyItemHeader}>
+                        <Ionicons name="calendar" size={16} color="#6b7280" />
+                        <Text style={styles.historyDate}>
+                          {new Date(session.timestamp).toLocaleDateString()} at{' '}
+                          {new Date(session.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </Text>
                       </View>
-                      <View style={styles.historyStat}>
-                        <Text style={styles.historyStatLabel}>WPM</Text>
-                        <Text style={styles.historyStatValue}>{session.metrics.wpm}</Text>
+                      
+                      <View style={styles.historyStats}>
+                        <View style={styles.historyStat}>
+                          <Ionicons name="document-text" size={14} color="#9ca3af" />
+                          <Text style={styles.historyStatLabel}>Words</Text>
+                          <Text style={styles.historyStatValue}>{session.metrics.totalWords}</Text>
+                        </View>
+                        <View style={styles.historyStat}>
+                          <Ionicons name="warning" size={14} color="#ef4444" />
+                          <Text style={styles.historyStatLabel}>Fillers</Text>
+                          <Text style={styles.historyStatValue}>{session.metrics.fillerWordCount}</Text>
+                        </View>
+                        <View style={styles.historyStat}>
+                          <Ionicons name="speedometer" size={14} color="#10b981" />
+                          <Text style={styles.historyStatLabel}>WPM</Text>
+                          <Text style={styles.historyStatValue}>{session.metrics.wpm}</Text>
+                        </View>
+                      </View>
+                      
+                      <View style={styles.historyPreview}>
+                        <Text style={styles.historyPreviewText} numberOfLines={2}>
+                          {session.preview}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.historyFooter}>
+                        <View style={[styles.fillerBadge, { 
+                          backgroundColor: session.metrics.fillerPercentage > 10 ? '#fee2e2' : '#dcfce7'
+                        }]}>
+                          <Text style={[styles.fillerBadgeText, {
+                            color: session.metrics.fillerPercentage > 10 ? '#b91c1c' : '#166534'
+                          }]}>
+                            {session.metrics.fillerPercentage.toFixed(1)}% fillers
+                          </Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
                       </View>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
-                  </View>
-                </TouchableOpacity>
-              ))
+                  </TouchableOpacity>
+                ))}
+              </>
             ) : (
               <View style={styles.emptyState}>
-                <Ionicons name="document" size={48} color="#d1d5db" />
+                <Ionicons name="document" size={64} color="#d1d5db" />
                 <Text style={styles.emptyStateText}>No analysis history yet</Text>
                 <Text style={styles.emptyStateSubtext}>
                   Analyze your first speech to see results here
                 </Text>
+                <TouchableOpacity 
+                  style={styles.startAnalyzingButton}
+                  onPress={() => setActiveTab('analyze')}
+                >
+                  <Text style={styles.startAnalyzingText}>Start Analyzing</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -414,11 +483,16 @@ const styles = StyleSheet.create({
     elevation: 3,
     marginBottom: 20,
   },
+  resultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1f2937',
-    marginBottom: 16,
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -548,60 +622,120 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  clearHistoryText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6b7280',
+  },
   historyItem: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   historyItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
+    backgroundColor: '#ffffff',
     borderRadius: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
   },
   historyItemHeader: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
+    marginBottom: 12,
+    gap: 6,
   },
   historyDate: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontSize: 13,
+    color: '#4b5563',
+    fontWeight: '500',
   },
   historyStats: {
     flexDirection: 'row',
-    gap: 16,
-    marginRight: 12,
+    justifyContent: 'space-around',
+    marginBottom: 12,
+    paddingVertical: 8,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
   },
   historyStat: {
     alignItems: 'center',
+    gap: 2,
   },
   historyStatLabel: {
     fontSize: 10,
-    color: '#9ca3af',
+    color: '#6b7280',
+    marginTop: 2,
   },
   historyStatValue: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
+  },
+  historyPreview: {
+    backgroundColor: '#f3f4f6',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  historyPreviewText: {
+    fontSize: 12,
+    color: '#4b5563',
+    lineHeight: 18,
+  },
+  historyFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  fillerBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  fillerBadgeText: {
+    fontSize: 11,
+    fontWeight: '500',
   },
   emptyState: {
     alignItems: 'center',
     padding: 40,
   },
   emptyStateText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#6b7280',
-    marginTop: 12,
+    color: '#4b5563',
+    marginTop: 16,
   },
   emptyStateSubtext: {
     fontSize: 14,
     color: '#9ca3af',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  startAnalyzingButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#4f46e5',
+    borderRadius: 8,
+  },
+  startAnalyzingText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

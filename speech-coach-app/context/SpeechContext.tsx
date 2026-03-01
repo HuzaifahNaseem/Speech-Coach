@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 import { speechApi, BackendAnalysisResponse, SessionHistoryResponse } from '@/services/api';
 
 interface SpeechContextType {
@@ -10,6 +10,7 @@ interface SpeechContextType {
   loadHistory: () => Promise<void>;
   loadSession: (sessionId: string) => Promise<void>;
   clearError: () => void;
+  clearCurrentAnalysis: () => void;
 }
 
 const SpeechContext = createContext<SpeechContextType | undefined>(undefined);
@@ -32,26 +33,28 @@ export const SpeechProvider: React.FC<SpeechProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const loadHistory = useCallback(async () => {
+    try {
+      const historyData = await speechApi.getHistory();
+      setHistory(historyData);
+    } catch (err) {
+      console.error('Failed to load history:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load history');
+    }
+  }, []);
+
   const analyzeSpeech = async (transcript: string) => {
     setIsLoading(true);
     setError(null);
     try {
       const response = await speechApi.analyzeSpeech({ transcript });
       setCurrentAnalysis(response);
+      // Immediately refresh history to include the new session
       await loadHistory();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze speech');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadHistory = async () => {
-    try {
-      const historyData = await speechApi.getHistory();
-      setHistory(historyData);
-    } catch (err) {
-      console.error('Failed to load history:', err);
     }
   };
 
@@ -61,6 +64,7 @@ export const SpeechProvider: React.FC<SpeechProviderProps> = ({ children }) => {
     try {
       const session = await speechApi.getSession(sessionId);
       setCurrentAnalysis(session);
+      // Switch to analyze tab to show the loaded session
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load session');
     } finally {
@@ -69,6 +73,13 @@ export const SpeechProvider: React.FC<SpeechProviderProps> = ({ children }) => {
   };
 
   const clearError = () => setError(null);
+  
+  const clearCurrentAnalysis = () => setCurrentAnalysis(null);
+
+  // Load history on mount
+  React.useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   return (
     <SpeechContext.Provider
@@ -81,6 +92,7 @@ export const SpeechProvider: React.FC<SpeechProviderProps> = ({ children }) => {
         loadHistory,
         loadSession,
         clearError,
+        clearCurrentAnalysis,
       }}
     >
       {children}
