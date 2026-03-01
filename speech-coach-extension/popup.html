@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Speech Coach</title>
+  <title>Speech Coach - Training Session</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -13,6 +13,36 @@
   </div>
 
   <button id="toggleBtn">Start Session</button>
+
+  <div id="quickTipBanner" class="quick-tip-banner" style="display: none;">
+    <span id="quickTipText"></span>
+  </div>
+
+  <div class="stats-section">
+    <h3>Live Stats</h3>
+    <div class="stat-row">
+      <span class="stat-label">Words Per Minute:</span>
+      <span class="stat-value" id="wpm">0</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Word Count:</span>
+      <span class="stat-value" id="wordCount">0</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Filler Words:</span>
+      <span class="stat-value" id="fillerCount">0</span>
+    </div>
+  </div>
+
+  <div class="transcript-section">
+    <h3>Transcript</h3>
+    <div id="transcript" class="transcript-box"></div>
+  </div>
+
+  <div class="feedback-section" id="feedbackSection" style="display: none;">
+    <h3>AI Feedback</h3>
+    <div id="feedback" class="feedback-box"></div>
+  </div>
 
   <script src="popup.js"></script>
 </body>

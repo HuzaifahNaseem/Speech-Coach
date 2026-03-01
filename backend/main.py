@@ -39,6 +39,70 @@ def health():
     return {"ok": True}
 
 
+@app.post("/quick-feedback")
+async def quick_feedback(request: AnalyzeRequest):
+    """Provide quick 1-2 sentence coaching tips based on current metrics."""
+    
+    transcript = request.transcript
+    duration_seconds = request.duration_seconds
+    
+    if duration_seconds <= 0:
+        raise HTTPException(status_code=400, detail="duration_seconds must be greater than 0")
+    
+    filler_patterns = {
+        "um": r"\bum\b",
+        "uh": r"\bu+h+\b",
+        "like": r"\blike\b",
+        "you know": r"\byou know\b",
+        "basically": r"\bbasically\b",
+        "actually": r"\bactually\b",
+        "literally": r"\bliterally\b",
+        "sort of": r"\bsort of\b",
+        "kind of": r"\bkind of\b",
+        "i mean": r"\bi mean\b",
+    }
+    
+    total_filler_count = 0
+    transcript_lower = transcript.lower()
+    
+    for filler, pattern in filler_patterns.items():
+        count = len(re.findall(pattern, transcript_lower))
+        total_filler_count += count
+    
+    words = transcript.split()
+    word_count = len(words)
+    duration_minutes = duration_seconds / 60
+    wpm = round(word_count / duration_minutes, 2) if duration_minutes > 0 else 0
+    
+    fillers_per_minute = total_filler_count / duration_minutes if duration_minutes > 0 else 0
+    
+    quick_tip = ""
+    severity = "good"
+    
+    if fillers_per_minute > 10:
+        quick_tip = "Too many filler words! Pause instead of saying 'um'."
+        severity = "alert"
+    elif fillers_per_minute > 5:
+        quick_tip = "You're using filler words. Take a breath before speaking."
+        severity = "warning"
+    elif wpm > 160:
+        quick_tip = "Slow down! You're speaking too fast."
+        severity = "warning"
+    elif wpm < 120:
+        quick_tip = "Try speaking a bit faster to maintain energy."
+        severity = "warning"
+    else:
+        quick_tip = "Great pace! Keep it up."
+        severity = "good"
+    
+    return {
+        "quick_tip": quick_tip,
+        "wpm": wpm,
+        "filler_count": total_filler_count,
+        "severity": severity
+    }
+
+
 @app.post("/analyze")
 async def analyze_speech(request: AnalyzeRequest):
     """Analyze speech transcript for filler words, WPM, and get AI feedback."""
@@ -57,7 +121,7 @@ async def analyze_speech(request: AnalyzeRequest):
     
     filler_patterns = {
         "um": r"\bum\b",
-        "uh": r"\buh\b",
+        "uh": r"\bu+h+\b",
         "like": r"\blike\b",
         "you know": r"\byou know\b",
         "basically": r"\bbasically\b",
